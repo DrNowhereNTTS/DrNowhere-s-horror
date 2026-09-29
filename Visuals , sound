@@ -1,0 +1,103 @@
+locust.x += (lDx / distToLocust) * locust.speed;
+locust.y += (lDy / distToLocust) * locust.speed;
+// Direct contact with The Locust is fatal
+if (distToLocust < (player.size + locust.size/2)) {
+endGame("THE LOCUST BROOKE THROUGH YOUR SCREEN", "Your body was recovered with no visible physical injuries.");
+}
+}
+// Tape Check Collision
+tapes.forEach(tape => {
+if (!tape.collected) {
+let tDx = player.x - tape.x;
+let tDy = player.y - tape.y;
+if (Math.sqrt(tDxtDx + tDytDy) < player.size + 15) {
+tape.collected = true;
+score++;
+playDistortionBeep(400);
+// Reset Locust on item find to scale pacing
+locust.active = false;
+locust.spawnTimer = 150;
+locust.speed += 0.3; // increase difficulty
+}
+}
+});
+// Update UI hooks
+document.getElementById("resistanceTxt").innerText = Math.max(0, Math.floor(player.resistance));
+document.getElementById("scoreTxt").innerText = score;
+// Death checks
+if (player.resistance <= 0) {
+endGame("PHEN-228 COGNITIVE OVERLOAD", "An indelible memory was imprinted. You fell asleep and awoke in a permanent pseudocoma.");
+}
+// Win check
+if (score >= 5) {
+endGame("BROADCAST EXTRACTED SUCCESSFULLY", "You managed to cut the feed before reality collapsed. You survived Doctor Nowhere's creations.", true);
+}
+}
+function renderGraphics() {
+ctx.fillStyle = "#030000";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+// Flashlight Field of view simulation
+let gradient = ctx.createRadialGradient(player.x, player.y, 10, player.x, player.y, 220);
+gradient.addColorStop(0, 'rgba(255,245,220,0.15)');
+gradient.addColorStop(1, 'rgba(0,0,0,0.96)');
+ctx.fillStyle = gradient;
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+// Render VHS Tapes
+tapes.forEach(tape => {
+if (!tape.collected) {
+ctx.fillStyle = "#555"; ctx.fillRect(tape.x - 12, tape.y - 8, 24, 16);
+ctx.fillStyle = "#fff";
+ctx.fillRect(tape.x - 8, tape.y - 4, 6, 4);
+ctx.fillRect(tape.x + 2, tape.y - 4, 6, 4);
+}
+});
+// Render Threat Agents
+drawBoiledOne(ctx, boiledOne.x, boiledOne.y, boiledOne.pulse);
+if (locust.active) {
+drawLocust(ctx, locust.x, locust.y);// Render Player Node
+ctx.fillStyle = "#ffffff";
+ctx.shadowBlur = 10;
+ctx.shadowColor = "#ffffff";
+ctx.beginPath();
+ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+ctx.fill();
+ctx.shadowBlur = 0; // Reset canvas shadow bloom
+}
+function endGame(title, text, win = false) {
+gameActive = false;
+const screen = document.getElementById("gameOverScreen");
+const titleEl = document.getElementById("overTitle"titleEl.innerText = title;
+titleEl.style.color = win ? "#55ff55" : "#ff3333";
+descEl.innerText = text;
+screen.classList.remove("hidden");
+}
+// Audio Engine Synthesizer Context
+let audioCtx = null;
+function initAudio() {
+if(!audioCtx) {
+audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// Create a low drone hum
+let oscillator = audioCtx.createOscillator();
+let gainNode = audioCtx.createGain();
+oscillator.type = 'sawtooth';
+oscillator.frequency.setValueAtTime(45, audioCtx.currentTime);
+gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime);
+oscillator.connect(gainNode);
+gainNode.connect(audioCtx.destination);
+oscillator.start();
+}
+}
+function playDistortionBeep(freq) {if(!audioCtx) return;
+let osc = audioCtx.createOscillator();
+let gain = audioCtx.createGain();
+osc.type = 'sine';
+osc.frequency.setValueAtTime(freq + (Math.random()*40), audioCtx.currentTime);
+gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+osc.connect(gain);
+gain.connect(audioCtx.destination);
+osc.start();
+osc.stop(audioCtx.currentTime + 0.1);
+}
+);
+const descEl = document.getElementById("overDesc");
