@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor Nowhere: Broadcast Evacuation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #050505;
+            color: #ff3333;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 4px solid #330000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+        }
+        canvas {
+            background: #000;
+            display: block;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            text-shadow: 2px 2px #000;
+            font-size: 18px;
+        }
+        #staticOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,%3Csvg viewBox="0%200%20200%20200"%20xmlns="http://w3.org"%3E%3Cfilter%20id="noiseFilter"%3E%3CfeTurbulence%20type="fractalNoise"%20baseFrequency="0.8"%20numOctaves="3"%20stitchTiles="stitch"/%3E%3C/filter%3E%3Crect%20width="100%25"%20height="100%25"%20filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+            opacity: 0.08;
+            pointer-events: none;
+            animation: grain 0.2s steps(2) infinite;
+        }
+        @keyframes grain {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-5px, 5px); }
+        }
+        .screen-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0,0,0,0.85);
+            padding: 30px;
+            border: 2px solid #ff3333;
+            width: 80%;
+        }
+        button {
+            background: #220000;
+            color: #ff3333;
+            border: 1px solid #ff3333;
+            padding: 10px 20px;
+            margin-top: 20px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #ff3333;
+            color: #000;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="staticOverlay"></div>
+    
+    <div class="ui-layer">
+        <div>COGNITIVE RESISTANCE: <span id="resistanceTxt">100</span>%</div>
+        <div>TAPES EXTRACTED: <span id="scoreTxt">0</span> / 5</div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="screen-msg">
+        <h2>PHENOMENON EVALUATION SYSTEM</h2>
+        <p style="color: #bbb; margin: 15px 0; font-size: 14px;">
+            Extract 5 corrupted VHS tapes before your mind breaks. <br><br>
+            Avoid <span style="color:#ff3333; font-weight:bold;">PHEN-228 (The Boiled One)</span>. If it stares at you, break line of sight immediately to avoid locked-in paralysis.<br><br>
+            Watch out for <span style="color:#55ff55; font-weight:bold;">The Locust</span>. It will materialize out of nowhere to hunt you down.
+        </p>
+        <p style="color: #888;">Controls: WASD / Arrow Keys to Move.</p>
+        <button onclick="startGame()">ENTER THE BROADCAST</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="screen-msg hidden">
+        <h1 id="overTitle">DIAGNOSIS: PSEUDOCOMA</h1>
+        <p id="overDesc" style="color: #bbb; margin: 15px 0;"></p>
+        <button onclick="startGame()">RE-ENTER</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Game Elements State
+    let player = { x: 400, y: 300, size: 16, speed: 4, resistance: 100 };
+    let keys = {};
+    let tapes = [];
+    let score = 0;
+    let gameActive = false;
+    
+    // Doctor Nowhere Creatures
+    let boiledOne = { x: 100, y: 100, size: 45, pulse: 0 };
+    let locust = { x: -100, y: -100, size: 24, speed: 2.2, active: false, spawnTimer: 200 };
+
+    window.addEventListener("keydown", e => keys[e.code] = true);
+    window.addEventListener("keyup", e => keys[e.code] = false);
+
+    function startGame() {
+        player.x = 400; player.y = 500; player.resistance = 100;
+        score = 0;
+        locust.active = false;
+        locust.spawnTimer = 180; 
+        boiledOne.x = 150; boiledOne.y = 150;
+        
+        generateTapes();
+        
+        document.getElementById("startScreen").classList.add("hidden");
+        document.getElementById("gameOverScreen").classList.add("hidden");
+        gameActive = true;
+        
+        // Background audio generator for analog horror atmosphere
+        initAudio();
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    function generateTapes() {
+        tapes = [];
+        for(let i=0; i<5; i++) {
+            tapes.push({
+                x: Math.random() * (canvas.width - 60) + 30,
+                y: Math.random() * (canvas.height - 120) + 30,
+                collected: false
+            });
+        }
+    }
+
+    // Procedural Graphics Functions to represent Dr. Nowhere designs dynamically
+    function drawBoiledOne(ctx, x, y, pulse) {
+        ctx.save();
+        // Distorted, melting red fleshy head silhouette (PHEN-228 style)
+        let sizeMod = Math.sin(pulse) * 4;
+        ctx.fillStyle = "#8a0303";
+        ctx.beginPath();
+        ctx.moveTo(x, y - 30 - sizeMod);
+        ctx.bezierCurveTo(x + 25, y - 25, x + 35, y + 20, x + 10, y + 35 + sizeMod);
+        ctx.bezierCurveTo(x, y + 45, x - 20, y + 35, x - 30, y + 10);
+        ctx.bezierCurveTo(x - 25, y - 25, x - 15, y - 30, x, y - 30 - sizeMod);
+        ctx.fill();
+
+        // Sunken hollow eyes
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(x - 8, y - 5, 5 + Math.random()*2, 0, Math.PI * 2);
+        ctx.arc(x + 8, y - 5, 5 + Math.random()*2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tiny white hyper-reflective pupils
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(x - 9, y - 6, 2, 2);
+        ctx.fillRect(x + 7, y - 6, 2, 2);
+
+        // Grid-like unsettling grin
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 12, y + 15);
+        ctx.lineTo(x + 12, y + 15);
+        ctx.stroke();
+        // Teeth slits
+        for(let i = -8; i <= 8; i += 4) {
+            ctx.beginPath();
+            ctx.moveTo(x + i, y + 12);
+            ctx.lineTo(x + i, y + 18);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function drawLocust(ctx, x, y) {
+        ctx.save();
+        // Tall, thin, eerie biomechanical structure with an asymmetrical face
+        ctx.fillStyle = "#111111";
+        ctx.strokeStyle = "#333333";
+        ctx.lineWidth = 3;
+        
+        // Segmented body
+        ctx.fillRect(x - 6, y - 20, 12, 40);
+        // Spidery limbs
+        ctx.beginPath();
+        ctx.moveTo(x - 6, y - 10); ctx.lineTo(x - 20, y - 5); ctx.lineTo(x - 25, y + 20);
+        ctx.moveTo(x + 6, y - 10); ctx.lineTo(x + 20, y - 5); ctx.lineTo(x + 25, y + 20);
+        ctx.stroke();
+
+        // Ghostly white distorted face frame
+        ctx.fillStyle = "#e0e0e0";
+        ctx.beginPath();
+        ctx.arc(x, y - 25, 10, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Void eyes
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(x - 4, y - 26, 3, 0, Math.PI*2);
+        ctx.arc(x + 4, y - 26, 2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        if (!gameActive) return;
+
+        updateMechanics();
+        renderGraphics();
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function updateMechanics() {
+        // Player Movement
+        if (keys["KeyW"] || keys["ArrowUp"]) player.y -= player.speed;
+        if (keys["KeyS"] || keys["ArrowDown"]) player.y += player.speed;
+        if (keys["KeyA"] || keys["ArrowLeft"]) player.x -= player.speed;
+        if (keys["KeyD"] || keys["ArrowRight"]) player.x += player.speed;
+
+        // Boundaries
+        player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
+        player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
+
+        // Boiled One interaction logic (Slowly tracks you, damages resistance when close/staring)
+        boiledOne.pulse += 0.1;
+        let dx = player.x - boiledOne.x;
+        let dy = player.y - boiledOne.y;
+        let distanceToBoiled = Math.sqrt(dx*dx + dy*dy);
+        
+        // Move PHEN-228 sluggishly toward player
+        boiledOne.x += (dx / distanceToBoiled) * 0.6;
+        boiledOne.y += (dy / distanceToBoiled) * 0.6;
+
+        if (distanceToBoiled < 160) {
+            // Cognitive drainage happens when trapped in his proximity zone
+            player.resistance -= 0.18;
+            playDistortionBeep(80);
+        }
+
+        // Locust Spawn and AI Logic
+        if (!locust.active) {
+            locust.spawnTimer--;
+            if (locust.spawnTimer <= 0) {
+                locust.active = true;
+                // Spawns aggressively near bounds
+                locust.x = Math.random() > 0.5 ? 50 : canvas.width - 50;
+                locust.y = Math.random() > 0.5 ? 50 : canvas.height - 50;
+            }
+        } else {
+            let lDx = player.x - locust.x;
+            let lDy = player.y - locust.y;
+            let distToLocust = Math.sqrt(lDx*lDx + lDy*lDy);
+            
+            // Rapid hunting behavior
